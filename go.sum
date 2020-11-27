@@ -1,3 +1,5 @@
+github.com/grd/statistics v0.0.0-20130405091615-5af75da930c9 h1:VgcBlcf+gxSR6+X8PerbepV9x+WZV0f4K+SYVYCmk+U=
+github.com/grd/statistics v0.0.0-20130405091615-5af75da930c9/go.mod h1:0I4YW+/RI/5xLC4FZzEQuaSMK5DW8GyfYIVSZ1PeC6Y=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/net v0.0.0-20200506145744-7e3656a0809f h1:QBjCr1Fz5kw158VqdE9JfI9cJnl/ymnJWAdMuinqL7Y=
 golang.org/x/net v0.0.0-20200506145744-7e3656a0809f/go.mod h1:qpuaurCH72eLCgpAm/N6yyVIVM9cpaDIP3A8BGJEC5A=

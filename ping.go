@@ -13,6 +13,8 @@ import (
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv4"
 	"golang.org/x/net/ipv6"
+
+	"github.com/grd/statistics"
 )
 
 const (
@@ -62,6 +64,122 @@ type Ping struct {
 	source     string
 	timeout    time.Duration
 	interval   time.Duration
+}
+
+//Summary struct
+type Summary struct {
+	Domain         string  `json:"domain"`
+	IP             string  `json:"ip"`
+	Count          int     `json:"count"`
+	Transmitted    int     `json:"transmitted"`
+	Received       int     `json:"received"`
+	RacketlossRate int     `json:"racketlossrate"`
+	Avg            float64 `json:"avg"`
+	Min            float64 `json:"min"`
+	Max            float64 `json:"max"`
+	Mdev           float64 `json:"mdev"`
+	Timedout       bool    `json:"timedout"`
+}
+
+//Options struct
+type Options struct {
+	URI         string `json:"uri"`
+	V           string `json:"v"`
+	Interval    string `json:"interval"`
+	PackageSize int    `json:"packageSize"`
+	Count       int    `json:"count"`
+	Timeout     string `json:"timeout"`
+}
+
+//Task struct
+type Task struct {
+	Pings   []Response `json:"pings"`
+	Summary Summary    `json:"summary"`
+	Err     string     `json:"err"`
+}
+
+//getURIIP func
+func getURIIP(uri string, v string) string {
+	ips, err := net.LookupIP(uri)
+	if err != nil {
+		return ""
+	}
+	for _, ip := range ips {
+		if ip.To4() != nil && v == "4" {
+			return ip.String()
+		} else if ip.To4() == nil && v == "6" {
+			return ip.String()
+		}
+	}
+	return ""
+}
+
+//GoPing func
+func GoPing(o Options) Task {
+	var tempPingTask = Task{}
+	ip := getURIIP(o.URI, o.V)
+	if ip == "" {
+		tempPingTask.Err = "dns解析错误"
+		return tempPingTask
+	}
+	tempPingTask.Summary.Domain = o.URI
+	tempPingTask.Summary.IP = ip
+	p, err := New(ip)
+	if err != nil {
+		tempPingTask.Err = err.Error()
+		return tempPingTask
+	}
+	if o.V == "6" {
+		p.SetForceV6()
+	} else {
+		p.SetForceV4()
+	}
+	p.SetInterval(o.Interval)
+	p.SetPacketSize(o.PackageSize)
+	p.SetTimeout(o.Timeout)
+	p.SetCount(o.Count)
+	r, err := p.Run()
+	if err != nil {
+		tempPingTask.Err = err.Error()
+		return tempPingTask
+	}
+	var tempPings = []Response{}
+	tempPingTask.Summary.Max = 0
+	tempPingTask.Summary.Min = 0
+	var total float64
+	var times int
+	var received int
+	var data = statistics.Float64{}
+	var loss = 0
+	for pr := range r {
+		if pr.Err != nil {
+			loss++
+			continue
+		}
+		tempPingTask.Summary.IP = pr.IP
+		times++
+		total += pr.Ms
+		data = append(data, pr.Ms)
+		tempPings = append(tempPings, pr)
+	}
+	received = o.Count - loss
+	tempPingTask.Summary.Avg = total / float64(received)
+	tempPingTask.Summary.Count = o.Count
+	tempPingTask.Summary.Received = received
+	if received == o.Count {
+		tempPingTask.Summary.RacketlossRate = 0
+		tempPingTask.Summary.Timedout = false
+		tempPingTask.Summary.Transmitted = o.Count
+	} else {
+		loss := (o.Count - received) / o.Count * 100
+		tempPingTask.Summary.RacketlossRate = int(loss)
+		tempPingTask.Summary.Transmitted = o.Count - received
+	}
+	tempPingTask.Summary.Max, _ = statistics.Max(&data)
+	tempPingTask.Summary.Min, _ = statistics.Min(&data)
+	tempPingTask.Summary.Mdev = statistics.Variance(&data)
+	tempPingTask.Pings = tempPings
+	return tempPingTask
 }
 
 // New constructs ping object
