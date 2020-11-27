@@ -252,8 +252,8 @@ func TestRun(t *testing.T) {
 		t.Fatal(result.Err)
 	}
 
-	if result.Addr != HostV4 {
-		t.Errorf("expect addr : %s but got %s", HostV4, result.Addr)
+	if result.IP != HostV4 {
+		t.Errorf("expect addr : %s but got %s", HostV4, result.IP)
 	}
 }
 
