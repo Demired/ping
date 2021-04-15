@@ -19,20 +19,20 @@ import (
 
 const (
 	// ProtocolIPv4ICMP is IANA ICMP IPv4
-	ProtocolIPv4ICMP = 1
+	//ProtocolIPv4ICMP = 1
 	// ProtocolIPv6ICMP is IANA ICMP IPv6
-	ProtocolIPv6ICMP = 58
+	//ProtocolIPv6ICMP = 58
 	// icmpHeaderSize is ICMP header size
 	icmpHeaderSize = 8
 )
 
 // packet represents ping packet
-type packet struct {
-	bytes []byte
-	addr  net.Addr
-	ttl   int
-	err   error
-}
+//type packet struct {
+//	bytes []byte
+//	addr  net.Addr
+//	ttl   int
+//	err   error
+//}
 
 // Response represent ping response
 type Response struct {
@@ -135,9 +135,9 @@ func GoPing(o Options) Task {
 	} else {
 		p.SetForceV4()
 	}
-	p.SetInterval(o.Interval)
+	_ = p.SetInterval(o.Interval)
 	p.SetPacketSize(o.PackageSize)
-	p.SetTimeout(o.Timeout)
+	_ = p.SetTimeout(o.Timeout)
 	p.SetCount(o.Count)
 	p.SetDredge(true)
 	r, err := p.Run()
@@ -145,7 +145,7 @@ func GoPing(o Options) Task {
 		tempPingTask.Err = err.Error()
 		return tempPingTask
 	}
-	var tempPings = []Response{}
+	var tempPings []Response
 	tempPingTask.Summary.Max = 0
 	tempPingTask.Summary.Min = 0
 	var total float64
@@ -173,7 +173,7 @@ func GoPing(o Options) Task {
 		tempPingTask.Summary.Timedout = false
 		tempPingTask.Summary.Transmitted = o.Count
 	} else {
-		loss := (o.Count - received) / o.Count * 100
+		loss = (o.Count - received) / o.Count * 100
 		tempPingTask.Summary.RacketlossRate = int(loss)
 		tempPingTask.Summary.Transmitted = o.Count - received
 	}
@@ -348,12 +348,12 @@ func (p *Ping) Run() (chan Response, error) {
 		err  error
 	)
 
-	if p.isDredge {
-		p.dredge(conn)
-	}
-
 	if err := p.setIP(p.addrs); err != nil {
 		return nil, err
+	}
+
+	if p.isDredge {
+		p.dredge(conn)
 	}
 
 	if p.isV4Avail {
@@ -404,7 +404,7 @@ func (p *Ping) RunWithContext(ctx context.Context) (chan Response, error) {
 		for n := 0; n < p.count; n++ {
 			select {
 			case <-ctx.Done():
-				conn.Close()
+				_ = conn.Close()
 			default:
 				p.ping(conn, r)
 				if n != p.count-1 {
@@ -438,7 +438,7 @@ func (p *Ping) recv4(conn *icmp.PacketConn, rcvdChan chan<- Response) {
 	)
 
 	bytes := make([]byte, 1500)
-	conn.SetReadDeadline(time.Now().Add(p.timeout))
+	_ = conn.SetReadDeadline(time.Now().Add(p.timeout))
 
 	for {
 		var cm *ipv4.ControlMessage
@@ -451,9 +451,9 @@ func (p *Ping) recv4(conn *icmp.PacketConn, rcvdChan chan<- Response) {
 		}
 
 		if err != nil {
-			if neterr, ok := err.(*net.OpError); ok {
-				if neterr.Timeout() {
-					err = errors.New("Request timeout")
+			if netErr, ok := err.(*net.OpError); ok {
+				if netErr.Timeout() {
+					err = errors.New("request timeout")
 				}
 			}
 		}
@@ -467,7 +467,7 @@ func (p *Ping) recv4(conn *icmp.PacketConn, rcvdChan chan<- Response) {
 		switch icmpType {
 		case int(ipv4.ICMPTypeTimeExceeded):
 			if n >= 28 && p.isMyReply(bytes) {
-				err = errors.New("Time exceeded")
+				err = errors.New("time exceeded")
 				rcvdChan <- Response{IP: p.getIPAddr(src), TTL: ttl, IcmpReq: p.seq, Err: err}
 				return
 			}
@@ -499,7 +499,7 @@ func (p *Ping) recv4(conn *icmp.PacketConn, rcvdChan chan<- Response) {
 			continue
 		}
 
-		err = errors.New("Request timeout")
+		err = errors.New("request timeout")
 		rcvdChan <- Response{IP: p.getIPAddr(src), IcmpReq: p.seq, Err: err}
 		break
 	}
@@ -516,7 +516,7 @@ func (p *Ping) recv6(conn *icmp.PacketConn, rcvdChan chan<- Response) {
 	)
 
 	bytes := make([]byte, 1500)
-	conn.SetReadDeadline(time.Now().Add(p.timeout))
+	_ = conn.SetReadDeadline(time.Now().Add(p.timeout))
 
 	for {
 		var cm *ipv6.ControlMessage
@@ -529,9 +529,9 @@ func (p *Ping) recv6(conn *icmp.PacketConn, rcvdChan chan<- Response) {
 		}
 
 		if err != nil {
-			if neterr, ok := err.(*net.OpError); ok {
-				if neterr.Timeout() {
-					err = errors.New("Request timeout")
+			if netErr, ok := err.(*net.OpError); ok {
+				if netErr.Timeout() {
+					err = errors.New("request timeout")
 				}
 			}
 		}
@@ -545,7 +545,7 @@ func (p *Ping) recv6(conn *icmp.PacketConn, rcvdChan chan<- Response) {
 		switch icmpType {
 		case int(ipv6.ICMPTypeTimeExceeded):
 			if n >= 48 && p.isMyReply(bytes) {
-				err = errors.New("Time exceeded")
+				err = errors.New("time exceeded")
 				rcvdChan <- Response{IP: p.getIPAddr(src), TTL: ttl, IcmpReq: p.seq, Err: err}
 				return
 			}
@@ -575,11 +575,12 @@ func (p *Ping) recv6(conn *icmp.PacketConn, rcvdChan chan<- Response) {
 			continue
 		}
 
-		err = errors.New("Request timeout")
+		err = errors.New("request timeout")
 		rcvdChan <- Response{IP: p.getIPAddr(src), IcmpReq: p.seq, Err: err}
 		break
 	}
 }
+
 
 func (p *Ping) dredge(conn *icmp.PacketConn) {
 	var (
@@ -623,6 +624,7 @@ func (p *Ping) dredge(conn *icmp.PacketConn) {
 	}
 }
 
+
 func (p *Ping) send(conn *icmp.PacketConn) error {
 	var (
 		icmpType icmp.Type
@@ -631,16 +633,16 @@ func (p *Ping) send(conn *icmp.PacketConn) error {
 
 	if isIPv6(p.addr.String()) {
 		icmpType = ipv6.ICMPTypeEchoRequest
-		conn.IPv6PacketConn().SetHopLimit(p.ttl)
-		conn.IPv6PacketConn().SetControlMessage(ipv6.FlagHopLimit, true)
-		conn.IPv6PacketConn().SetControlMessage(ipv6.FlagInterface, true)
+		_ = conn.IPv6PacketConn().SetHopLimit(p.ttl)
+		_ = conn.IPv6PacketConn().SetControlMessage(ipv6.FlagHopLimit, true)
+		_ = conn.IPv6PacketConn().SetControlMessage(ipv6.FlagInterface, true)
 
 	} else {
 		icmpType = ipv4.ICMPTypeEcho
-		conn.IPv4PacketConn().SetTTL(p.ttl)
-		conn.IPv4PacketConn().SetControlMessage(ipv4.FlagTTL, true)
-		conn.IPv4PacketConn().SetTOS(p.tos)
-		conn.IPv4PacketConn().SetControlMessage(ipv4.FlagInterface, true)
+		_ = conn.IPv4PacketConn().SetTTL(p.ttl)
+		_ = conn.IPv4PacketConn().SetControlMessage(ipv4.FlagTTL, true)
+		_ = conn.IPv4PacketConn().SetTOS(p.tos)
+		_ = conn.IPv4PacketConn().SetControlMessage(ipv4.FlagInterface, true)
 	}
 
 	p.seq++
@@ -658,8 +660,8 @@ func (p *Ping) send(conn *icmp.PacketConn) error {
 
 	for range []int{0, 1} {
 		if _, err = conn.WriteTo(bytes, p.addr); err != nil {
-			if neterr, ok := err.(*net.OpError); ok {
-				if neterr.Err == syscall.ENOBUFS {
+			if netErr, ok := err.(*net.OpError); ok {
+				if netErr.Err == syscall.ENOBUFS {
 					continue
 				}
 			}
@@ -770,7 +772,7 @@ func getTimeStamp(m []byte) int64 {
 func unreachableMessage(bytes []byte) string {
 	code := int(bytes[1])
 	mtu := int(bytes[6])<<8 | int(bytes[7])
-	var errors = []string{
+	var errorList = []string{
 		"Network unreachable",
 		"Host unreachable",
 		"Protocol unreachable",
@@ -789,17 +791,17 @@ func unreachableMessage(bytes []byte) string {
 		"Precedence cutoff in effect",
 	}
 
-	return errors[code]
+	return errorList[code]
 }
 
 func redirectMessage(bytes []byte) string {
 	code := int(bytes[1])
-	var errors = []string{
+	var errorList = []string{
 		"Redirect for Network",
 		"Redirect for Host",
 		"Redirect for Type of Service and Network",
 		"Redirect for Type of Service and Host",
 	}
 
-	return errors[code]
+	return errorList[code]
 }
