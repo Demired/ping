@@ -36,17 +36,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-  
-  p.SetCount(4)
-  
-  r, err := p.Run()
+
+	p.SetCount(4)
+
+	r, err := p.Run()
 	if err != nil {
 		log.Fatal(err)
 	}
-  
-  for pr := range r {
-    fmt.Printf("%#v\n", pr)
-  }
+
+	for pr := range r {
+		fmt.Printf("%#v\n", pr)
+	}
+}
 ```
 ```
 #go run main.go
