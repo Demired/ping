@@ -57,6 +57,7 @@ type Ping struct {
 	ifs        map[int]string
 	host       string
 	isV4Avail  bool
+	isDredge   bool
 	forceV4    bool
 	forceV6    bool
 	privileged bool
@@ -138,6 +139,7 @@ func GoPing(o Options) Task {
 	p.SetPacketSize(o.PackageSize)
 	p.SetTimeout(o.Timeout)
 	p.SetCount(o.Count)
+	p.SetDredge(true)
 	r, err := p.Run()
 	if err != nil {
 		tempPingTask.Err = err.Error()
@@ -244,6 +246,10 @@ func (p *Ping) SetPacketSize(s int) {
 	p.pSize = s
 }
 
+func (p *Ping) SetDredge (d bool) {
+	p.isDredge = d
+}
+
 // SetForceV4 sets force v4
 func (p *Ping) SetForceV4() {
 	p.forceV4 = true
@@ -341,6 +347,10 @@ func (p *Ping) Run() (chan Response, error) {
 		conn *icmp.PacketConn
 		err  error
 	)
+
+	if p.isDredge {
+		p.dredge(conn)
+	}
 
 	if err := p.setIP(p.addrs); err != nil {
 		return nil, err
@@ -568,6 +578,48 @@ func (p *Ping) recv6(conn *icmp.PacketConn, rcvdChan chan<- Response) {
 		err = errors.New("Request timeout")
 		rcvdChan <- Response{IP: p.getIPAddr(src), IcmpReq: p.seq, Err: err}
 		break
+	}
+}
+
+func (p *Ping) dredge(conn *icmp.PacketConn) {
+	var (
+		icmpType icmp.Type
+		err      error
+	)
+	if isIPv6(p.addr.String()) {
+		icmpType = ipv6.ICMPTypeEchoRequest
+		_ = conn.IPv6PacketConn().SetHopLimit(p.ttl)
+		_ = conn.IPv6PacketConn().SetControlMessage(ipv6.FlagHopLimit, true)
+		_ = conn.IPv6PacketConn().SetControlMessage(ipv6.FlagInterface, true)
+	} else {
+		icmpType = ipv4.ICMPTypeEcho
+		_ = conn.IPv4PacketConn().SetTTL(p.ttl)
+		_ = conn.IPv4PacketConn().SetControlMessage(ipv4.FlagTTL, true)
+		_ = conn.IPv4PacketConn().SetTOS(p.tos)
+		_ = conn.IPv4PacketConn().SetControlMessage(ipv4.FlagInterface, true)
+	}
+	bytes, err := (&icmp.Message{
+		Type: icmpType, Code: 0,
+		Body: &icmp.Echo{
+			ID:   p.id,
+			Seq:  100,
+			Data: p.payload(time.Now().UnixNano()),
+		},
+	}).Marshal(nil)
+	if err != nil {
+		return
+	}
+	for range []int{0, 1, 2} {
+		for range []int{0, 1} {
+			if _, err = conn.WriteTo(bytes, p.addr); err != nil {
+				if netErr, ok := err.(*net.OpError); ok {
+					if netErr.Err == syscall.ENOBUFS {
+						continue
+					}
+				}
+			}
+			break
+		}
 	}
 }
 
